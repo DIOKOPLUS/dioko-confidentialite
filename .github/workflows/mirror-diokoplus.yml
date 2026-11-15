@@ -1,0 +1,39 @@
+# Copie chaque push (branches, tags, suppressions) vers DIOKOPLUS, en attendant la migration
+# complète. Ne poussez pas directement sur la copie DIOKOPLUS : elle serait écrasée ici.
+name: Miroir DIOKOPLUS
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  delete:
+  workflow_dispatch:
+
+concurrency:
+  group: miroir-diokoplus
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    # La copie DIOKOPLUS porte aussi ce fichier : elle ne doit pas se copier elle-même.
+    if: github.repository_owner == 'Dioko-by-Jotali'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Copie vers DIOKOPLUS
+        env:
+          SSH_KEY: ${{ secrets.MIRROR_SSH_KEY }}
+          TOKEN: ${{ github.token }}
+          SRC: ${{ github.repository }}
+          NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          git clone --bare "https://x-access-token:${TOKEN}@github.com/${SRC}.git" src
+          cd src
+          git push --prune "git@github.com:DIOKOPLUS/${NAME}.git" 'refs/heads/*:refs/heads/*' 'refs/tags/*:refs/tags/*'
